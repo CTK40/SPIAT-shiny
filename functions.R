@@ -18,20 +18,29 @@ format_image_to_spe <- function(format = "general", intensity_matrix = NULL,
                 spatialCoordsNames = c("Cell.X.Position", "Cell.Y.Position"))
         }
         else{
-            markers <- rownames(intensity_matrix)
-            Cell_IDs <- colnames(intensity_matrix)
+            if (class(a)[1] == "matrix"){
+                markers <- rownames(intensity_matrix)
+                Cell_IDs <- colnames(intensity_matrix)
+                intensity_columns <- t(intensity_matrix)
+                intensity_columns <- remove_intensity_na(intensity_columns)
+                Cell_IDs_omit <- names(attr(intensity_columns,"na.action"))
+                if (!is.null(Cell_IDs_omit)) Cell_IDs_update <- Cell_IDs[-which(Cell_IDs %in% Cell_IDs_omit)]
+                else Cell_IDs_update <- Cell_IDs
+                # remove the corresponding cells info in metadata
+                metadata_columns <- metadata_columns[
+                    !metadata_columns$Cell.ID %in% Cell_IDs_omit,]
+            }
+            if (class(a) == "data.frame"){
+                markers <- colnames(intensity_matrix)
+                Cell_IDs <- intensity_matrix$cell
+                Cell_IDs_update <- Cell_IDs
+                intensity_columns <- intensity_matrix
+            }
             metadata_columns <- data.frame(Cell.ID = Cell_IDs,
                                            Phenotype = phenotypes,
                                            Cell.X.Position = coord_x,
                                            Cell.Y.Position = coord_y)
-            intensity_columns <- t(intensity_matrix)
-            intensity_columns <- remove_intensity_na(intensity_columns)
-            Cell_IDs_omit <- names(attr(intensity_columns,"na.action"))
-            if (!is.null(Cell_IDs_omit)) Cell_IDs_update <- Cell_IDs[-which(Cell_IDs %in% Cell_IDs_omit)]
-            else Cell_IDs_update <- Cell_IDs
-            # remove the corresponding cells info in metadata
-            metadata_columns <- metadata_columns[
-                !metadata_columns$Cell.ID %in% Cell_IDs_omit,]
+
             #transpose the matrix so every column is a cell and every row is a marker
             assay_data_matrix <- as.matrix(intensity_columns)
             colnames(assay_data_matrix) <- NULL

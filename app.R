@@ -4,7 +4,7 @@
 library(shiny)
 library(dplyr)
 library(SPIAT)
-
+source("functions.R")
 ui <- fluidPage(
     sidebarLayout(
         sidebarPanel(
