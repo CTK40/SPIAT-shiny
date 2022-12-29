@@ -1,4 +1,4 @@
-format_image_to_spe <- function(format = "general", intensity_matrix = NULL,
+format_image_to_spe <- function(format = "general", intensity_matrix = NULL, Cell_IDs = NULL, 
                                 phenotypes = NULL, coord_x = NULL,
                                 coord_y = NULL, path = NULL, markers = NULL,
                                 locations = NULL,
@@ -6,8 +6,12 @@ format_image_to_spe <- function(format = "general", intensity_matrix = NULL,
                                 dye_columns_interest = NULL,
                                 path_to_codex_cell_phenotypes = NULL){
     if (format == "general"){
+        if (is.null(Cell_IDs)){
+            if ("matrix" %in% class(intensity_matrix)){
+                Cell_IDs <- colnames(intensity_matrix)
+            }else Cell_IDs <- seq_len(length(phenotypes))
+        }
         if (is.null(intensity_matrix)){
-            Cell_IDs <- seq_len(length(phenotypes))
             metadata_columns <- data.frame(Cell.ID = Cell_IDs,
                                            Phenotype = phenotypes,
                                            Cell.X.Position = coord_x,
@@ -18,21 +22,13 @@ format_image_to_spe <- function(format = "general", intensity_matrix = NULL,
                 spatialCoordsNames = c("Cell.X.Position", "Cell.Y.Position"))
         }
         else{
-            if (class(a)[1] == "matrix"){
+            if ("matrix" %in% class(intensity_matrix)){
                 markers <- rownames(intensity_matrix)
-                Cell_IDs <- colnames(intensity_matrix)
                 intensity_columns <- t(intensity_matrix)
-                intensity_columns <- remove_intensity_na(intensity_columns)
-                Cell_IDs_omit <- names(attr(intensity_columns,"na.action"))
-                if (!is.null(Cell_IDs_omit)) Cell_IDs_update <- Cell_IDs[-which(Cell_IDs %in% Cell_IDs_omit)]
-                else Cell_IDs_update <- Cell_IDs
-                # remove the corresponding cells info in metadata
-                metadata_columns <- metadata_columns[
-                    !metadata_columns$Cell.ID %in% Cell_IDs_omit,]
+                Cell_IDs_update <- Cell_IDs
             }
-            if (class(a) == "data.frame"){
+            if ("data.frame" %in% class(intensity_matrix)){
                 markers <- colnames(intensity_matrix)
-                Cell_IDs <- intensity_matrix$cell
                 Cell_IDs_update <- Cell_IDs
                 intensity_columns <- intensity_matrix
             }
@@ -40,7 +36,6 @@ format_image_to_spe <- function(format = "general", intensity_matrix = NULL,
                                            Phenotype = phenotypes,
                                            Cell.X.Position = coord_x,
                                            Cell.Y.Position = coord_y)
-
             #transpose the matrix so every column is a cell and every row is a marker
             assay_data_matrix <- as.matrix(intensity_columns)
             colnames(assay_data_matrix) <- NULL
