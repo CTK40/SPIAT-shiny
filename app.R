@@ -109,6 +109,16 @@ server <- function(input, output, session) {
     observeEvent(input$do, {
        # try save object into a var
         new_df <- markerOrGene() %>% select(!!!input$var_gene_select)
+        phenotypes <- 1:dim(markerOrGene())[1]
+        coord_x <- 1:dim(markerOrGene())[1]
+        coord_y <- 1:dim(markerOrGene())[1]
+        Cell_IDs <- 1:dim(markerOrGene())[1]
+        general_format_image <- format_image_to_spe(format = "general", 
+                                                    intensity_matrix = new_df,
+                                                    Cell_IDs = Cell_IDs,
+                                                    phenotypes = phenotypes,
+                                                    coord_x = coord_x, coord_y = coord_y)
+        save(general_format_image, file = "spe.Rda")
     })
     
 }
