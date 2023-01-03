@@ -1,9 +1,9 @@
 # Made it read csv file and enable column selection.
-# TODO: Select column for "marker intensities" (gene expressions)
-# TODO: Add a button to save df object
+# TODO: add selecting Cell ID 
 library(shiny)
 library(dplyr)
 library(SPIAT)
+library(purrr)
 source("functions.R")
 ui <- fluidPage(
     sidebarLayout(
@@ -12,14 +12,7 @@ ui <- fluidPage(
             selectInput("format", "Select file format",
                         choices = c("general", "inForm", "HALO", "Xenium", 
                                     "cellprofiler", "CODEX", "IMC", "CosMx")),
-            textInput("dir", "Type your folder path"),
-            # Select file
-            fileInput("file1", "Choose image File/Folder",
-                      accept = c(".csv", ".gz", ".txt", ".tsv")),
-            # checkboxInput("header", "Header", TRUE),
-            # Select file for marker intensity/gene expression
-            fileInput("file2", "Choose file for assay",
-                      accept = c(".csv", ".gz", ".txt", ".tsv")),
+            uiOutput("format"),
             # checkboxInput("header", "Header", TRUE)
             
         ),
@@ -37,11 +30,17 @@ ui <- fluidPage(
             # Select the range to show rows in the data (fast)
             fluidRow(
                 column(3, numericInput("row1", "Show rows from", value = 1, min = 1)),
-                column(3,  numericInput("row2", "Show rows to", value = 50, min = 1)),
+                column(3,  numericInput("row2", "Show rows to", value = 10, min = 1)),
                 # Add a button to save the df object for marker intensity/gene expression
                 column(3, actionButton("do", "Save the marker/gene data frame"))),
             tableOutput("image"),
-            tableOutput("markerOrGene")
+            tableOutput("markerOrGene"),
+            fluidRow(
+                column(3, uiOutput("phenotype")),
+                column(3, uiOutput("coord_x")),
+                column(3, uiOutput("coord_y"))
+            ),
+            tableOutput("metadata")
         )
     )
 )
@@ -49,11 +48,26 @@ ui <- fluidPage(
 server <- function(input, output, session) {
     # Read in files of different format
     format <- reactive(input$format)
+    # The data reading field changes with different formats
+    output$format <- renderUI({
+        if (format() == "inForm" || format() == "HALO"){
+            fileInput("file_markers", "Choose image file",
+                      accept = c(".csv", ".gz", ".txt", ".tsv"))
+        }else if (format() == "Xenium"){
+            textInput("dir", "Type your folder path")
+        }else if (format() == "IMC"){
+            map(c("file_markers2", "file_meta"),  # how to add different labels here???
+                ~ fileInput(.x, NULL, 
+                      accept = c(".csv", ".gz", ".txt", ".tsv")))
+        }
+    })
+    
+    # read in the markers/genes
     image <- reactive(
         if (format() == "inForm"){
-            vroom::vroom(input$file1$datapath, delim = "\t")
-        }else if(format() == "HALO"){
-            vroom::vroom(input$file1$datapath)
+            vroom::vroom(input$file_markers$datapath, delim = "\t")
+        }else if(format() == "HALO" || format() == "IMC"){
+            vroom::vroom(input$file_markers$datapath)
         }else if (format() == "Xenium"){
             spe <- read_Xenium(samples = input$dir, type = "HDF5", data = "cell")
             data.frame(t(assay((spe))))
@@ -61,9 +75,15 @@ server <- function(input, output, session) {
     )
     
     markerOrGene <- reactive(
-        vroom::vroom(input$file2$datapath)
+        vroom::vroom(input$file_markers2$datapath)
     )
-
+    
+    # read in metadata
+    metadata <- reactive(
+        if (format() == "IMC"){
+            vroom::vroom(input$file_meta$datapath)
+        }
+    )
     
     # Select columns subject to the file selected
     # select columns 
@@ -102,16 +122,51 @@ server <- function(input, output, session) {
         }else if (length(input$var_gene_select) != 0 && length(input$var_gene_ignore) == 0){
             markerOrGene()[input$row1:input$row2, ] %>% select(!!!input$var_gene_select)
         }else if (length(input$var_gene_select) == 0 && length(input$var_gene_ignore) != 0){
-            markerOrGene()[input$row1:input$row2, ] %>% select(!(!!!input$var_gene_ignore))
+            # Couldn't find a way to directly 
+            temp <- markerOrGene()[input$row1:input$row2, ] 
+            for (i in 1:length(input$var_gene_ignore)){
+                temp <- temp %>% select(!(!!input$var_gene_ignore[[i]]))
+            }
+            temp
         }
     }, rownames = TRUE)
+    
+    # visualise the metadata
+    output$phenotype <- renderUI(
+        varSelectInput("phenotype", label = "Variable of phenotype to select:", data = metadata(),
+                   multiple = FALSE, width = "500px")
+    )
+    output$coord_x <- renderUI(
+        varSelectInput("coord_x", label = "Variable of x coordinates to select:", 
+                     data = metadata(), multiple = FALSE, width = "500px")
+    )
+    output$coord_y <- renderUI(
+    varSelectInput("coord_y", label = "Variable of y coordinates to select:", 
+                   data = metadata(), multiple = FALSE, width = "500px")
+    )
+    output$metadata <- renderTable({
+        return(metadata()[1:10, ])
+    })
     # If click the button
     observeEvent(input$do, {
        # try save object into a var
-        new_df <- markerOrGene() %>% select(!!!input$var_gene_select)
-        phenotypes <- 1:dim(markerOrGene())[1]
-        coord_x <- 1:dim(markerOrGene())[1]
-        coord_y <- 1:dim(markerOrGene())[1]
+        # Note this intensity matrix code is wrong (need to save all data if there is no selected vars)
+        if (length(input$var_gene_select == 0) && length(input$var_gene_ignore == 0)) {
+            new_df <- markerOrGene()
+        }else if (length(input$var_gene_select != 0)){
+            new_df <- data.frame(markerOrGene() %>% select(!!!input$var_gene_select))
+        }else{
+            temp <- markerOrGene()
+            for (i in 1:length(input$var_gene_ignore)){
+                temp <- temp %>% select(!(!!input$var_gene_ignore[[i]]))
+            }
+            new_df <- temp
+        }
+        
+        # Note for these metadata, they are still data frames but not vectors, so need to add [, 1] at the end
+        phenotypes <- data.frame(metadata() %>% select(!!!input$phenotype))[, 1]
+        coord_x <- data.frame(metadata() %>% select(!!!input$coord_x))[, 1]
+        coord_y <- data.frame(metadata() %>% select(!!!input$coord_y))[, 1]
         Cell_IDs <- 1:dim(markerOrGene())[1]
         general_format_image <- format_image_to_spe(format = "general", 
                                                     intensity_matrix = new_df,
