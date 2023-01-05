@@ -1,5 +1,6 @@
 # Made it read csv file and enable column selection.
 # TODO: add selecting Cell ID 
+# TODO: add selecting sample ID (fov)
 library(shiny)
 library(dplyr)
 library(SPIAT)
@@ -11,7 +12,7 @@ ui <- fluidPage(
             # Select file format
             selectInput("format", "Select file format",
                         choices = c("general", "inForm", "HALO", "Xenium", 
-                                    "cellprofiler", "CODEX", "IMC", "CosMx")),
+                                    "cellprofiler", "CODEX", "MERSCOPE", "CosMX")),
             uiOutput("format"),
             # checkboxInput("header", "Header", TRUE)
             
@@ -36,6 +37,7 @@ ui <- fluidPage(
             tableOutput("image"),
             tableOutput("markerOrGene"),
             fluidRow(
+                column(3, uiOutput("sample")),
                 column(3, uiOutput("phenotype")),
                 column(3, uiOutput("coord_x")),
                 column(3, uiOutput("coord_y"))
@@ -55,7 +57,7 @@ server <- function(input, output, session) {
                       accept = c(".csv", ".gz", ".txt", ".tsv"))
         }else if (format() == "Xenium"){
             textInput("dir", "Type your folder path")
-        }else if (format() == "IMC"){
+        }else if (format() == "MERSCOPE" || format() == "CosMX"){
             map(c("file_markers2", "file_meta"),  # how to add different labels here???
                 ~ fileInput(.x, NULL, 
                       accept = c(".csv", ".gz", ".txt", ".tsv")))
@@ -66,7 +68,7 @@ server <- function(input, output, session) {
     image <- reactive(
         if (format() == "inForm"){
             vroom::vroom(input$file_markers$datapath, delim = "\t")
-        }else if(format() == "HALO" || format() == "IMC"){
+        }else if(format() == "HALO"){
             vroom::vroom(input$file_markers$datapath)
         }else if (format() == "Xenium"){
             spe <- read_Xenium(samples = input$dir, type = "HDF5", data = "cell")
@@ -80,7 +82,7 @@ server <- function(input, output, session) {
     
     # read in metadata
     metadata <- reactive(
-        if (format() == "IMC"){
+        if (format() == "MERSCOPE" || format() == "CosMX"){
             vroom::vroom(input$file_meta$datapath)
         }
     )
@@ -132,6 +134,10 @@ server <- function(input, output, session) {
     }, rownames = TRUE)
     
     # visualise the metadata
+    output$sample <- renderUI(
+        varSelectInput("sample", label = "Varaible of sample ID (fov) to select:", 
+                       data = metadata(), multiple = FALSE, width = "500px")
+    )
     output$phenotype <- renderUI(
         varSelectInput("phenotype", label = "Variable of phenotype to select:", data = metadata(),
                    multiple = FALSE, width = "500px")
@@ -168,9 +174,11 @@ server <- function(input, output, session) {
         coord_x <- data.frame(metadata() %>% select(!!!input$coord_x))[, 1]
         coord_y <- data.frame(metadata() %>% select(!!!input$coord_y))[, 1]
         Cell_IDs <- 1:dim(markerOrGene())[1]
+        Sample_IDs <- data.frame(metadata() %>% select(!!!input$sample))[, 1]
         general_format_image <- format_image_to_spe(format = "general", 
                                                     intensity_matrix = new_df,
                                                     Cell_IDs = Cell_IDs,
+                                                    Sample_IDs = Sample_IDs, 
                                                     phenotypes = phenotypes,
                                                     coord_x = coord_x, coord_y = coord_y)
         save(general_format_image, file = "spe.Rda")
