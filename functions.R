@@ -1,4 +1,7 @@
-format_image_to_spe <- function(format = "general", intensity_matrix = NULL, Cell_IDs = NULL, 
+library(DropletUtils)
+# TODO: To add selecting sample column
+format_image_to_spe <- function(format = "general", intensity_matrix = NULL, 
+                                Sample_IDs = NULL, Cell_IDs = NULL, 
                                 phenotypes = NULL, coord_x = NULL,
                                 coord_y = NULL, path = NULL, markers = NULL,
                                 locations = NULL,
@@ -6,10 +9,17 @@ format_image_to_spe <- function(format = "general", intensity_matrix = NULL, Cel
                                 dye_columns_interest = NULL,
                                 path_to_codex_cell_phenotypes = NULL){
     if (format == "general"){
+        if (is.null(coord_x) || is.null(coord_y)) stop("Cell locations are missing!")
+        if (is.null(phenotypes)){
+            phenotypes <- rep("Undefined", length(coord_x))
+        }
         if (is.null(Cell_IDs)){
             if ("matrix" %in% class(intensity_matrix)){
                 Cell_IDs <- colnames(intensity_matrix)
-            }else Cell_IDs <- seq_len(length(phenotypes))
+            }else Cell_IDs <- seq_len(length(coord_x))
+        }
+        if (is.null(Sample_IDs)){
+            Sample_IDs <- "sample01"
         }
         if (is.null(intensity_matrix)){
             metadata_columns <- data.frame(Cell.ID = Cell_IDs,
@@ -22,6 +32,7 @@ format_image_to_spe <- function(format = "general", intensity_matrix = NULL, Cel
                 spatialCoordsNames = c("Cell.X.Position", "Cell.Y.Position"))
         }
         else{
+            View(intensity_matrix)
             if ("matrix" %in% class(intensity_matrix)){
                 markers <- rownames(intensity_matrix)
                 intensity_columns <- t(intensity_matrix)
@@ -44,6 +55,7 @@ format_image_to_spe <- function(format = "general", intensity_matrix = NULL, Cel
             spe <- SpatialExperiment::SpatialExperiment(
                 assay = assay_data_matrix_t,
                 colData = metadata_columns,
+                sample_id = Sample_IDs, 
                 spatialCoordsNames = c("Cell.X.Position", "Cell.Y.Position"))
             rownames(spe) <- markers
             colnames(spe) <- Cell_IDs_update
