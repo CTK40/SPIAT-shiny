@@ -11,7 +11,7 @@ ui <- fluidPage(
         sidebarPanel(
             # Select file format
             selectInput("format", "Select file format",
-                        choices = c("general", "inForm", "HALO", "Xenium", 
+                        choices = c("general", "inForm", "HALO", "Xenium", "Visium", 
                                     "cellprofiler", "CODEX", "MERSCOPE", "CosMX")),
             uiOutput("format"),
             # checkboxInput("header", "Header", TRUE)
@@ -19,10 +19,6 @@ ui <- fluidPage(
         ),
         mainPanel(
             # Show part of the table
-            fluidRow(
-                # This box is for selecting columns
-                column(6, uiOutput('variables1')),
-                column(6,  uiOutput('variables2'))),
             # Select columns for genes/markers
             fluidRow(
                 # This box is for selecting columns
@@ -34,7 +30,6 @@ ui <- fluidPage(
                 column(3,  numericInput("row2", "Show rows to", value = 10, min = 1)),
                 # Add a button to save the df object for marker intensity/gene expression
                 column(3, actionButton("do", "Save the marker/gene data frame"))),
-            tableOutput("image"),
             tableOutput("markerOrGene"),
             fluidRow(
                 column(3, uiOutput("sample")),
@@ -55,7 +50,7 @@ server <- function(input, output, session) {
         if (format() == "inForm" || format() == "HALO"){
             fileInput("file_markers", "Choose image file",
                       accept = c(".csv", ".gz", ".txt", ".tsv"))
-        }else if (format() == "Xenium"){
+        }else if (format() == "Xenium" || format() == "Visium"){
             textInput("dir", "Type your folder path")
         }else if (format() == "MERSCOPE" || format() == "CosMX"){
             map(c("file_markers2", "file_meta"),  # how to add different labels here???
@@ -65,19 +60,14 @@ server <- function(input, output, session) {
     })
     
     # read in the markers/genes
-    image <- reactive(
+    markerOrGene <- reactive(
         if (format() == "inForm"){
             vroom::vroom(input$file_markers$datapath, delim = "\t")
         }else if(format() == "HALO"){
             vroom::vroom(input$file_markers$datapath)
-        }else if (format() == "Xenium"){
-            spe <- read_Xenium(samples = input$dir, type = "HDF5", data = "cell")
-            data.frame(t(assay((spe))))
+        }else if (format() == "MERSCOPE" || format() == "CosMX"){
+            vroom::vroom(input$file_markers2$datapath)
         }
-    )
-    
-    markerOrGene <- reactive(
-        vroom::vroom(input$file_markers2$datapath)
     )
     
     # read in metadata
@@ -88,15 +78,6 @@ server <- function(input, output, session) {
     )
     
     # Select columns subject to the file selected
-    # select columns 
-    output$variables1 <- renderUI(
-        varSelectInput("variables1", label = "Variable to select:", data = image(),
-                       multiple = TRUE, width = "500px"))
-    # ignore columns
-    output$variables2 <- renderUI(
-        varSelectInput("variables2", label = "Variable to neglect:", data = image(),
-                       multiple = TRUE, width = "500px"))
-    
     # select columns for markers/genes
     output$var_gene_select <- renderUI(
         varSelectInput("var_gene_select", label = "Variable to select:", data = markerOrGene(),
@@ -105,17 +86,6 @@ server <- function(input, output, session) {
     output$var_gene_ignore <- renderUI(
         varSelectInput("var_gene_ignore", label = "Variable to neglect:", data = markerOrGene(),
                        multiple = TRUE, width = "500px"))
-    
-    # Visualise the table
-    output$image <- renderTable({
-        if (length(input$variables1) == 0 && length(input$variables2) == 0) {
-            return(image()[input$row1:input$row2, ])
-        }else if (length(input$variables1) != 0 && length(input$variables2) == 0){
-            image()[input$row1:input$row2, ] %>% select(!!!input$variables1)
-        }else if (length(input$variables1) == 0 && length(input$variables2) != 0){
-            image()[input$row1:input$row2, ] %>% select(!(!!!input$variables2))
-        }
-    }, rownames = TRUE)
     
     # Visualise the table
     output$markerOrGene <- renderTable({
@@ -155,36 +125,43 @@ server <- function(input, output, session) {
     })
     # If click the button
     observeEvent(input$do, {
-       # try save object into a var
-        # Note this intensity matrix code is wrong (need to save all data if there is no selected vars)
-        if (length(input$var_gene_select == 0) && length(input$var_gene_ignore == 0)) {
-            new_df <- markerOrGene()
-        }else if (length(input$var_gene_select != 0)){
-            new_df <- data.frame(markerOrGene() %>% select(!!!input$var_gene_select))
-        }else{
-            temp <- markerOrGene()
-            for (i in 1:length(input$var_gene_ignore)){
-                temp <- temp %>% select(!(!!input$var_gene_ignore[[i]]))
+        if (format() == "general"){
+            # try save object into a var
+            if (length(input$var_gene_select == 0) && length(input$var_gene_ignore == 0)) {
+                new_df <- markerOrGene()
+            }else if (length(input$var_gene_select != 0)){
+                new_df <- data.frame(markerOrGene() %>% select(!!!input$var_gene_select))
+            }else{
+                temp <- markerOrGene()
+                for (i in 1:length(input$var_gene_ignore)){
+                    temp <- temp %>% select(!(!!input$var_gene_ignore[[i]]))
+                }
+                new_df <- temp
             }
-            new_df <- temp
+            # Note for these metadata, they are still data frames but not vectors, so need to add [, 1] at the end
+            phenotypes <- data.frame(metadata() %>% select(!!!input$phenotype))[, 1]
+            coord_x <- data.frame(metadata() %>% select(!!!input$coord_x))[, 1]
+            coord_y <- data.frame(metadata() %>% select(!!!input$coord_y))[, 1]
+            Cell_IDs <- 1:dim(markerOrGene())[1]
+            Sample_IDs <- data.frame(metadata() %>% select(!!!input$sample))[, 1]
+            general_format_image <- format_image_to_spe(format = "general", 
+                                                        intensity_matrix = new_df,
+                                                        Cell_IDs = Cell_IDs,
+                                                        Sample_IDs = Sample_IDs, 
+                                                        phenotypes = phenotypes,
+                                                        coord_x = coord_x, coord_y = coord_y)
+            save(general_format_image, file = "spe.Rda")
+        }else if (format() == "Xenium"){
+            Xenium_spe <- read_Xenium(samples = input$dir, type = "HDF5", data = "cell")
+            save(Xenium_spe, file = "Xenium_spe.Rda")
+        }else if (format() == "Visium"){
+            
+            Visium_spe <- SpatialExperiment::read10xVisium(
+                samples = input$dir, type = "HDF5", data = "raw")
+            save(Visium_spe, file = "Visium_spe.Rda")
         }
-        
-        # Note for these metadata, they are still data frames but not vectors, so need to add [, 1] at the end
-        phenotypes <- data.frame(metadata() %>% select(!!!input$phenotype))[, 1]
-        coord_x <- data.frame(metadata() %>% select(!!!input$coord_x))[, 1]
-        coord_y <- data.frame(metadata() %>% select(!!!input$coord_y))[, 1]
-        Cell_IDs <- 1:dim(markerOrGene())[1]
-        Sample_IDs <- data.frame(metadata() %>% select(!!!input$sample))[, 1]
-        general_format_image <- format_image_to_spe(format = "general", 
-                                                    intensity_matrix = new_df,
-                                                    Cell_IDs = Cell_IDs,
-                                                    Sample_IDs = Sample_IDs, 
-                                                    phenotypes = phenotypes,
-                                                    coord_x = coord_x, coord_y = coord_y)
-        save(general_format_image, file = "spe.Rda")
     })
     
 }
 options(shiny.maxRequestSize=10000*1024^2)
 shinyApp(ui, server)
-
