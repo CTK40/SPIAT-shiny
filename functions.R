@@ -32,7 +32,6 @@ format_image_to_spe <- function(format = "general", intensity_matrix = NULL,
                 spatialCoordsNames = c("Cell.X.Position", "Cell.Y.Position"))
         }
         else{
-            View(intensity_matrix)
             if ("matrix" %in% class(intensity_matrix)){
                 markers <- rownames(intensity_matrix)
                 intensity_columns <- t(intensity_matrix)
@@ -53,7 +52,7 @@ format_image_to_spe <- function(format = "general", intensity_matrix = NULL,
             rownames(assay_data_matrix) <- NULL
             assay_data_matrix_t <- t(assay_data_matrix)
             spe <- SpatialExperiment::SpatialExperiment(
-                assay = assay_data_matrix_t,
+                assay = list(counts = assay_data_matrix_t),
                 colData = metadata_columns,
                 sample_id = Sample_IDs, 
                 spatialCoordsNames = c("Cell.X.Position", "Cell.Y.Position"))
