@@ -1,6 +1,4 @@
 # Made it read csv file and enable column selection.
-# TODO: add selecting Cell ID 
-# TODO: add selecting sample ID (fov)
 library(shiny)
 library(dplyr)
 library(SPIAT)
@@ -12,18 +10,18 @@ ui <- fluidPage(
             # Select file format
             selectInput("format", "Select file format",
                         choices = c("general", "inForm", "HALO", "Xenium", "Visium", 
-                                    "cellprofiler", "CODEX", "MERSCOPE", "CosMX")),
+                                     "MERSCOPE", "CosMX", "cellprofiler", "CODEX")),
             uiOutput("format"),
             # checkboxInput("header", "Header", TRUE)
-            
         ),
         mainPanel(
             # Show part of the table
             # Select columns for genes/markers
             fluidRow(
                 # This box is for selecting columns
-                column(6, uiOutput('var_gene_select')),
-                column(6,  uiOutput('var_gene_ignore'))),
+                column(3, uiOutput('cellID_gene')),
+                column(4, uiOutput('var_gene_select')),
+                column(4,  uiOutput('var_gene_ignore'))),
             # Select the range to show rows in the data (fast)
             fluidRow(
                 column(3, numericInput("row1", "Show rows from", value = 1, min = 1)),
@@ -32,6 +30,7 @@ ui <- fluidPage(
                 column(3, actionButton("do", "Save the marker/gene data frame"))),
             tableOutput("markerOrGene"),
             fluidRow(
+                column(3, uiOutput('cellID_metadata')),
                 column(3, uiOutput("sample")),
                 column(3, uiOutput("phenotype")),
                 column(3, uiOutput("coord_x")),
@@ -53,9 +52,11 @@ server <- function(input, output, session) {
         }else if (format() == "Xenium" || format() == "Visium"){
             textInput("dir", "Type your folder path")
         }else if (format() == "MERSCOPE" || format() == "CosMX"){
-            map(c("file_markers2", "file_meta"),  # how to add different labels here???
-                ~ fileInput(.x, NULL, 
-                      accept = c(".csv", ".gz", ".txt", ".tsv")))
+            fluidRow(
+                column(6, fileInput("file_markers2", "Select file for gene expressions:", 
+                      accept = c(".csv", ".gz", ".txt", ".tsv"))) , 
+                column(6, fileInput("file_meta", "Select file for metadata:", 
+                      accept = c(".csv", ".gz", ".txt", ".tsv"))))
         }
     })
     
@@ -78,6 +79,10 @@ server <- function(input, output, session) {
     )
     
     # Select columns subject to the file selected
+    # select column for cell ID
+    output$cellID_gene <- renderUI(
+        varSelectInput("cellID_gene", label = "Variable for Cell ID:", 
+                       data = markerOrGene(), multiple = FALSE))
     # select columns for markers/genes
     output$var_gene_select <- renderUI(
         varSelectInput("var_gene_select", label = "Variable to select:", data = markerOrGene(),
@@ -104,6 +109,9 @@ server <- function(input, output, session) {
     }, rownames = TRUE)
     
     # visualise the metadata
+    output$cellID_metadata <- renderUI(
+        varSelectInput("cellID_metadata", label = "Variable for Cell ID:", 
+                       data = metadata(), multiple = FALSE))
     output$sample <- renderUI(
         varSelectInput("sample", label = "Varaible of sample ID (fov) to select:", 
                        data = metadata(), multiple = FALSE, width = "500px")
@@ -117,7 +125,7 @@ server <- function(input, output, session) {
                      data = metadata(), multiple = FALSE, width = "500px")
     )
     output$coord_y <- renderUI(
-    varSelectInput("coord_y", label = "Variable of y coordinates to select:", 
+        varSelectInput("coord_y", label = "Variable of y coordinates to select:", 
                    data = metadata(), multiple = FALSE, width = "500px")
     )
     output$metadata <- renderTable({
@@ -125,7 +133,7 @@ server <- function(input, output, session) {
     })
     # If click the button
     observeEvent(input$do, {
-        if (format() == "general"){
+        if (format() == "MERSCOPE" || format() == "CosMX"){
             # try save object into a var
             if (length(input$var_gene_select == 0) && length(input$var_gene_ignore == 0)) {
                 new_df <- markerOrGene()
@@ -139,17 +147,25 @@ server <- function(input, output, session) {
                 new_df <- temp
             }
             # Note for these metadata, they are still data frames but not vectors, so need to add [, 1] at the end
+            Cell_IDs <- data.frame(metadata() %>% select(!!!input$cellID_metadata))[, 1]
+            Sample_IDs <- as.character(data.frame(metadata() %>% select(!!!input$sample))[, 1])
             phenotypes <- data.frame(metadata() %>% select(!!!input$phenotype))[, 1]
             coord_x <- data.frame(metadata() %>% select(!!!input$coord_x))[, 1]
             coord_y <- data.frame(metadata() %>% select(!!!input$coord_y))[, 1]
-            Cell_IDs <- 1:dim(markerOrGene())[1]
-            Sample_IDs <- data.frame(metadata() %>% select(!!!input$sample))[, 1]
+            
+            metadata_df <- data.frame(Cell_IDs, Sample_IDs, phenotypes, coord_x, coord_y)
+            
+            # match the cell IDs with the cell IDs from gene expression matrix
+            metadata_df_update <- metadata_df[match(metadata_df$Cell_IDs, 
+                                                    data.frame(markerOrGene() %>% select(!!!input$cellID_gene))[, 1]), ]
+            
             general_format_image <- format_image_to_spe(format = "general", 
                                                         intensity_matrix = new_df,
-                                                        Cell_IDs = Cell_IDs,
-                                                        Sample_IDs = Sample_IDs, 
-                                                        phenotypes = phenotypes,
-                                                        coord_x = coord_x, coord_y = coord_y)
+                                                        Cell_IDs = metadata_df_update$Cell_IDs,
+                                                        Sample_IDs = metadata_df_update$Sample_IDs, 
+                                                        phenotypes = metadata_df_update$phenotypes,
+                                                        coord_x = metadata_df_update$coord_x, 
+                                                        coord_y = metadata_df_update$coord_y)
             save(general_format_image, file = "spe.Rda")
         }else if (format() == "Xenium"){
             Xenium_spe <- read_Xenium(samples = input$dir, type = "HDF5", data = "cell")
@@ -163,5 +179,5 @@ server <- function(input, output, session) {
     })
     
 }
-options(shiny.maxRequestSize=10000*1024^2)
+options(shiny.maxRequestSize=200000*1024^2)
 shinyApp(ui, server)
