@@ -9,6 +9,9 @@ format_image_to_spe <- function(format = "general", intensity_matrix = NULL,
                                 dye_columns_interest = NULL,
                                 path_to_codex_cell_phenotypes = NULL){
     if (format == "general"){
+        View(Cell_IDs)
+        View(intensity_matrix)
+        View(Sample_IDs)
         if (is.null(coord_x) || is.null(coord_y)) stop("Cell locations are missing!")
         if (is.null(phenotypes)){
             phenotypes <- rep("Undefined", length(coord_x))
@@ -83,10 +86,6 @@ format_image_to_spe <- function(format = "general", intensity_matrix = NULL,
 }
 
 
-
-
-
-
 .read_xyz <- function(x) {
     cnms <- c(
         "cell_id", "x_centroid", "y_centroid", "transcript_counts", 
@@ -155,4 +154,19 @@ read_Xenium <- function (samples = "",
     spe <- do.call(cbind, spel)
     # imgData(spe) <- img
     return(spe)
+}
+
+
+get_colData <- function(spe_object){
+    formatted_data <- data.frame(SummarizedExperiment::colData(spe_object))
+    formatted_data <- cbind(formatted_data, 
+                            data.frame(SpatialExperiment::spatialCoords(spe_object)))
+    if (is.null(formatted_data$Cell.ID)){
+        formatted_data <- formatted_data %>% tibble::rownames_to_column("Cell.ID")
+    }
+    
+    # shouldn't delete column `sample_id`
+    # formatted_data$sample_id <- NULL
+    
+    return(formatted_data)
 }

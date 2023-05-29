@@ -3,6 +3,10 @@ library(SPIAT)
 library(dplyr)
 library(purrr)
 library(digest)
+library(RColorBrewer)
+source("functions.R")
+# increase the max size of file upload
+options(shiny.maxRequestSize=30000*1024^2)
 server <- function(input, output, session) {
     # Read in files of different format
     format <- reactive(input$format)
@@ -210,13 +214,47 @@ server <- function(input, output, session) {
             }
         }
     })
+    
+    coldata <- reactive({
+        get_colData(spe())
+    })
+    output$feature_colname <- renderUI(
+        varSelectInput("feature_colname", label = "Column name", 
+                       data = coldata(), multiple = FALSE))
+    output$categories <- renderUI(
+        selectInput("categories", label = "Cells of interest", 
+                     choices = unique(coldata()[[input$feature_colname]]),
+                    multiple = TRUE)
+        )
+    qual_col_pals <- reactive(brewer.pal.info[brewer.pal.info$category == 'qual',])
+    col_vector <- reactive(unlist(mapply(brewer.pal, qual_col_pals()$maxcolors, rownames(qual_col_pals()))))
+    
+    output$colour <- renderUI(
+        selectInput('colour', label = "Colour vector", choices = col_vector(),
+                    selected = col_vector()[1:length(input$categories)],
+                    multiple = TRUE)
+        )
+
     output$plot_cells <- renderPlot(
         {
             if (length(spe()) != 0 ){
-                g <- plot_cell_categories(spe(), categories_of_interest = "217522", 
-                                     feature_colname = "Cell.ID",
-                                     colour_vector = "red")
+                g <- plot_cell_categories(spe(), categories_of_interest = input$categories, 
+                                     feature_colname = input$feature_colname,
+                                     colour_vector = input$colour)
                 plot(g, width = 10, height = 10)
+            }
+        }
+    )
+    markers <- reactive(rownames(assay(spe())))
+    output$marker_level <- renderUI(
+        selectInput('marker_level', label = "Select the marker:", 
+                    choices = markers())
+    )
+    output$plot_marker <- renderPlot(
+        {
+            if (length(spe()) != 0 ){
+                p <- plot_cell_marker_levels(spe(), marker = input$marker_level)
+                plot(p, width = 10, height = 10)
             }
         }
     )
