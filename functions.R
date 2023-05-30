@@ -1,90 +1,9 @@
 library(DropletUtils)
 # TODO: To add selecting sample column
-format_image_to_spe <- function(format = "general", intensity_matrix = NULL, 
-                                Sample_IDs = NULL, Cell_IDs = NULL, 
-                                phenotypes = NULL, coord_x = NULL,
-                                coord_y = NULL, path = NULL, markers = NULL,
-                                locations = NULL,
-                                intensity_columns_interest = NULL,
-                                dye_columns_interest = NULL,
-                                path_to_codex_cell_phenotypes = NULL){
-    if (format == "general"){
-        View(Cell_IDs)
-        View(intensity_matrix)
-        View(Sample_IDs)
-        if (is.null(coord_x) || is.null(coord_y)) stop("Cell locations are missing!")
-        if (is.null(phenotypes)){
-            phenotypes <- rep("Undefined", length(coord_x))
-        }
-        if (is.null(Cell_IDs)){
-            if ("matrix" %in% class(intensity_matrix)){
-                Cell_IDs <- colnames(intensity_matrix)
-            }else Cell_IDs <- seq_len(length(coord_x))
-        }
-        if (is.null(Sample_IDs)){
-            Sample_IDs <- "sample01"
-        }
-        if (is.null(intensity_matrix)){
-            metadata_columns <- data.frame(Cell.ID = Cell_IDs,
-                                           Phenotype = phenotypes,
-                                           Cell.X.Position = coord_x,
-                                           Cell.Y.Position = coord_y)
-            spe <- SpatialExperiment::SpatialExperiment(
-                assay = NULL,
-                colData = metadata_columns,
-                spatialCoordsNames = c("Cell.X.Position", "Cell.Y.Position"))
-        }
-        else{
-            if ("matrix" %in% class(intensity_matrix)){
-                markers <- rownames(intensity_matrix)
-                intensity_columns <- t(intensity_matrix)
-                Cell_IDs_update <- Cell_IDs
-            }
-            if ("data.frame" %in% class(intensity_matrix)){
-                markers <- colnames(intensity_matrix)
-                Cell_IDs_update <- Cell_IDs
-                intensity_columns <- intensity_matrix
-            }
-            metadata_columns <- data.frame(Cell.ID = Cell_IDs,
-                                           Phenotype = phenotypes,
-                                           Cell.X.Position = coord_x,
-                                           Cell.Y.Position = coord_y)
-            #transpose the matrix so every column is a cell and every row is a marker
-            assay_data_matrix <- as.matrix(intensity_columns)
-            colnames(assay_data_matrix) <- NULL
-            rownames(assay_data_matrix) <- NULL
-            assay_data_matrix_t <- t(assay_data_matrix)
-            spe <- SpatialExperiment::SpatialExperiment(
-                assay = list(counts = assay_data_matrix_t),
-                colData = metadata_columns,
-                sample_id = Sample_IDs, 
-                spatialCoordsNames = c("Cell.X.Position", "Cell.Y.Position"))
-            rownames(spe) <- markers
-            colnames(spe) <- Cell_IDs_update
-        }
-        
-        
-    } else if (format == "inForm") {
-        spe <- format_inform_to_spe(path = path, markers = markers,
-                                    locations = locations,
-                                    intensity_columns_interest =
-                                        intensity_columns_interest)
-    }else if (format == "HALO"){
-        spe <- format_halo_to_spe(path = path, markers = markers,
-                                  locations = locations,
-                                  dye_columns_interest = dye_columns_interest,
-                                  intensity_columns_interest =
-                                      intensity_columns_interest)
-    } else if(format == "CODEX"){
-        spe <- format_codex_to_spe(path = path, markers = markers,
-                                   path_to_codex_cell_phenotypes = path_to_codex_cell_phenotypes)
-    }else if(format == "cellprofiler") {
-        spe <- format_cellprofiler_to_spe(path = path, markers = markers,
-                                          intensity_columns_interest = intensity_columns_interest)
-    } else { methods::show("Please entre a valid format!" )}
-    return(spe)
-}
 
+renderUI_varSelect <- function(inputId, label, data, selected = NULL, multiple = FALSE, width = NULL){
+    renderUI(varSelectInput(inputId, label, data, selected, multiple, width))
+}
 
 .read_xyz <- function(x) {
     cnms <- c(
@@ -156,6 +75,109 @@ read_Xenium <- function (samples = "",
     return(spe)
 }
 
+format_image <- function(format, var_gene_select = input$var_gene_select, var_gene_ignore = input$var_gene_ignore,
+                         df = markerOrGene(), df_meta = metadata(),
+                         cellID_metadata = input$cellID_metadata, 
+                         sample = input$sample, phenotype = input$phenotype,
+                         coord_x = input$coord_x, coord_y = input$coord_y,
+                         cellID_gene = input$cellID_gene,
+                         fov_gene = input$fov_gene,
+                         dir = input$dir){
+    if (format == "MERSCOPE" ){
+        # try save object into a var
+        if (length(var_gene_select) == 0 && length(var_gene_ignore) == 0) {
+            new_df <- df
+        }else if (length(var_gene_select) != 0){
+            new_df <- data.frame(df %>% select(!!!var_gene_select))
+        }else{
+            temp <- df
+            for (i in 1:length(var_gene_ignore)){
+                temp <- temp %>% select(!(!!var_gene_ignore[[i]]))
+            }
+            new_df <- temp
+        }
+        # Note for these metadata, they are still data frames but not vectors, so need to add [, 1] at the end
+        Cell_IDs <- data.frame(df_meta %>% select(!!!cellID_metadata))[, 1]
+        Sample_IDs <- as.character(data.frame(df_meta %>% select(!!!sample))[, 1])
+        phenotypes <- data.frame(df_meta %>% select(!!!phenotype))[, 1]
+        coord_x <- data.frame(df_meta %>% select(!!!coord_x))[, 1]
+        coord_y <- data.frame(df_meta %>% select(!!!coord_y))[, 1]
+        
+        metadata_df <- data.frame(Cell_IDs, Sample_IDs, phenotypes, coord_x, coord_y)
+        
+        # match the cell IDs with the cell IDs from gene expression matrix
+        metadata_df_update <- metadata_df[match(metadata_df$Cell_IDs, 
+                                                data.frame(df %>% select(!!!cellID_gene))[, 1]), ]
+        
+        general_format_image <- format_image_to_spe(format = "general", 
+                                                    intensity_matrix = new_df,
+                                                    Cell_IDs = metadata_df_update$Cell_IDs,
+                                                    Sample_IDs = metadata_df_update$Sample_IDs, 
+                                                    phenotypes = metadata_df_update$phenotypes,
+                                                    coord_x = metadata_df_update$coord_x, 
+                                                    coord_y = metadata_df_update$coord_y)
+        save(general_format_image, file = "Objects/spe.Rda")
+    }else if (format == "CosMX") {
+        new_df <- df
+        newID_df <- data.frame(
+            Cell_IDs = as.numeric(data.frame(new_df %>% select(!!!cellID_gene))[, 1]),
+            Sample_IDs = as.numeric(data.frame(new_df %>% select(!!!fov_gene))[, 1] ))
+        newID_df$Cell_IDs <- as.character(newID_df$Cell_IDs)
+        newID_df$Sample_IDs <- as.character(newID_df$Sample_IDs)
+        new_df$new_cellID <- apply(newID_df[, c("Cell_IDs", "Sample_IDs")], 1, digest)
+        
+        # Note for these metadata, they are still data frames but not vectors, so need to add [, 1] at the end
+        Cell_IDs <- data.frame(df_meta %>% select(!!!cellID_metadata))[, 1]
+        Sample_IDs <- as.character(data.frame(df_meta %>% select(!!!sample))[, 1])
+        phenotypes <- data.frame(df_meta %>% select(!!!phenotype))[, 1]
+        coord_x <- data.frame(df_meta %>% select(!!!coord_x))[, 1]
+        coord_y <- data.frame(df_meta %>% select(!!!coord_y))[, 1]
+        
+        metadata_df <- data.frame(Cell_IDs, Sample_IDs, phenotypes, coord_x, coord_y)
+        cellID_df <- metadata_df[, c("Cell_IDs", "Sample_IDs")]
+        cellID_df$Cell_IDs <- as.character(cellID_df$Cell_IDs)
+        cellID_df$Sample_IDs <- as.character(cellID_df$Sample_IDs)
+        metadata_df$new_cellID <- apply(cellID_df, 1, digest)
+        
+        # match the cell IDs with the cell IDs from gene expression matrix
+        metadata_df_update <- metadata_df[match(metadata_df$new_cellID, 
+                                                new_df$new_cellID), ]
+        metadata_df_update <- metadata_df_update[complete.cases(metadata_df_update), ]
+        
+        new_df_update <- new_df[match(new_df$new_cellID, metadata_df_update$new_cellID),]
+        new_df_update <- new_df_update[complete.cases(new_df_update), ]
+        
+        # clean up the gene expression matrix
+        if (length(var_gene_select == 0) && length(var_gene_ignore == 0)) {
+            meaningless <- 0
+        }else if (length(var_gene_select != 0)){
+            new_df_update <- data.frame(new_df_update %>% select(!!!var_gene_select))
+        }else{
+            temp <- new_df_update
+            for (i in 1:length(var_gene_ignore)){
+                temp <- temp %>% select(!(!!var_gene_ignore[[i]]))
+            }
+            new_df_update <- temp
+        }
+        
+        general_format_image <- format_image_to_spe(format = "general", 
+                                                    intensity_matrix = new_df_update,
+                                                    Cell_IDs = metadata_df_update$new_cellID,
+                                                    Sample_IDs = metadata_df_update$Sample_IDs, 
+                                                    phenotypes = metadata_df_update$phenotypes,
+                                                    coord_x = metadata_df_update$coord_x, 
+                                                    coord_y = metadata_df_update$coord_y)
+        save(general_format_image, file = "Objects/spe.Rda")
+    }else if (format == "Xenium"){
+        Xenium_spe <- read_Xenium(samples = dir, type = "HDF5", data = "cell")
+        save(Xenium_spe, file = "Objects/Xenium_spe.Rda")
+    }else if (format == "Visium"){
+        Visium_spe <- SpatialExperiment::read10xVisium(
+            samples = dir, type = "HDF5", data = "raw")
+        save(Visium_spe, file = "Objects/Visium_spe.Rda")
+    }
+}
+
 
 get_colData <- function(spe_object){
     formatted_data <- data.frame(SummarizedExperiment::colData(spe_object))
@@ -169,4 +191,20 @@ get_colData <- function(spe_object){
     # formatted_data$sample_id <- NULL
     
     return(formatted_data)
+}
+
+
+# read marker or gene
+read_markerGene <- function(format, path1, path2){
+    if (format == "inForm"){
+        if (is.null(path1)){
+            path1 <- "Data/example_inForm/tiny_inform.txt.gz"
+        }
+        df <- vroom::vroom(path1, delim = "\t")
+    }else if(format == "HALO"){
+        df <- vroom::vroom(path)
+    }else if (format == "MERSCOPE" || format == "CosMX"){
+        df <- vroom::vroom(path2)
+    }
+    return(df)
 }
