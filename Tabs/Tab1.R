@@ -16,21 +16,27 @@ Tab1 <- tabPanel(
                 # Select columns for genes/markers
                 fluidRow(
                     # This box is for selecting columns
-                    column(3, uiOutput('cellID_gene')),
-                    column(3, uiOutput('fov_gene')),
-                    column(4, uiOutput('var_gene_select')),
-                    column(4,  uiOutput('var_gene_ignore')),
+                    conditionalPanel(
+                        condition = "input.format != 'Visium'",
+                        column(3, uiOutput('cellID_gene')),
+                        column(3, uiOutput('fov_gene')),
+                        column(4, uiOutput('var_gene_select')),
+                        column(4,  uiOutput('var_gene_ignore'))
+                    ),
                     # Partial example
                     conditionalPanel(
-                        condition = "input.format == inForm",
+                        condition = "input.format == 'inForm'",
                         numericInput("n_markers", "The number of markers:", value = 1),
                         uiOutput("marker")
                     )),
                     
                 # Select the range to show rows in the data (fast)
                 fluidRow(
-                    column(3, numericInput("row1", "Show rows from", value = 1, min = 1)),
-                    column(3,  numericInput("row2", "Show rows to", value = 10, min = 1)),
+                    conditionalPanel(
+                        condition = "input.format != 'Visium' && input.format != 'Xenium'",
+                        column(3, numericInput("row1", "Show rows from", value = 1, min = 1)),
+                        column(3,  numericInput("row2", "Show rows to", value = 10, min = 1))
+                    ),
                     # Add a button to save the df object for marker intensity/gene expression
                     tags$head(
                         tags$style(HTML('#do{background-color:orange}'))
