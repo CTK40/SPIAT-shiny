@@ -1,12 +1,13 @@
 Tab1 <- tabPanel(
-    "First tab",
+    "Read, format and save",
     fluidPage(
         sidebarLayout(
             sidebarPanel(
                 # Select file format
                 selectInput("format", "Select file format",
                             choices = c("general", "inForm", "HALO", "Xenium", "Visium", 
-                                        "MERSCOPE", "CosMX", "cellprofiler", "CODEX")),
+                                        "MERSCOPE", "CosMX", "cellprofiler", "CODEX"),
+                            selected = "inForm"),
                 uiOutput("format"),
                 # checkboxInput("header", "Header", TRUE)
             ),
@@ -18,13 +19,23 @@ Tab1 <- tabPanel(
                     column(3, uiOutput('cellID_gene')),
                     column(3, uiOutput('fov_gene')),
                     column(4, uiOutput('var_gene_select')),
-                    column(4,  uiOutput('var_gene_ignore'))),
+                    column(4,  uiOutput('var_gene_ignore')),
+                    # Partial example
+                    conditionalPanel(
+                        condition = "input.format == inForm",
+                        numericInput("n_markers", "The number of markers:", value = 1),
+                        uiOutput("markers")
+                    )),
+                    
                 # Select the range to show rows in the data (fast)
                 fluidRow(
                     column(3, numericInput("row1", "Show rows from", value = 1, min = 1)),
                     column(3,  numericInput("row2", "Show rows to", value = 10, min = 1)),
                     # Add a button to save the df object for marker intensity/gene expression
-                    column(3, actionButton("do", "Save the marker/gene data frame"))),
+                    tags$head(
+                        tags$style(HTML('#do{background-color:orange}'))
+                    ),
+                    column(3, actionButton("do", "Save the SpatialExperiment object"))),
                 tableOutput("markerOrGene"),
                 fluidRow(
                     column(3, uiOutput('cellID_metadata')),
