@@ -82,7 +82,8 @@ format_image <- function(format, var_gene_select = input$var_gene_select, var_ge
                          coord_x = input$coord_x, coord_y = input$coord_y,
                          cellID_gene = input$cellID_gene,
                          fov_gene = input$fov_gene,
-                         dir = input$dir){
+                         dir = input$dir, markers = NULL,
+                         path1 = input$file_markers$datapath){
     if (format == "MERSCOPE" ){
         # try save object into a var
         if (length(var_gene_select) == 0 && length(var_gene_ignore) == 0) {
@@ -175,6 +176,13 @@ format_image <- function(format, var_gene_select = input$var_gene_select, var_ge
         Visium_spe <- SpatialExperiment::read10xVisium(
             samples = dir, type = "HDF5", data = "raw")
         save(Visium_spe, file = "Objects/Visium_spe.Rda")
+    }else if (format == "inForm"){
+        cols <- substr(as.character(unlist(var_gene_select)),2,stringr::str_length(as.character(unlist(var_gene_select)))-1)
+        print(cols)
+        print(markers)
+        inForm_spe <- format_inform_to_spe(path = path1, markers = markers, 
+                                           intensity_columns_interest = cols)
+        save(inForm_spe, file = "Objects/inForm_spe.Rda")
     }
 }
 

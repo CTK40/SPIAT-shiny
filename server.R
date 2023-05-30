@@ -1,4 +1,4 @@
-# TODO: be able to format inForm and HALO images
+# TODO: be able to format HALO images
 library(SPIAT)
 library(dplyr)
 library(purrr)
@@ -56,9 +56,15 @@ server <- function(input, output, session) {
         })
     # The number of textboxes to input markers depends on the number of markers
     marker_names <- reactive(paste0("marker", seq_len(input$n_markers)))
-    output$markers <- renderUI({
-        map(marker_names(), ~ column(floor(10/input$n_markers),
-                                   textInput(.x, NULL, value = "AMACR")))
+    output$marker <- renderUI({
+        map(marker_names(), ~ column(3, textInput(.x, NULL, value = "AMACR")))
+    })
+    markers <- reactive({
+        temp <- c()
+        for (i in seq_len(input$n_markers)){
+            temp <- c(temp, eval(parse(text = paste0("input$marker", i))))
+        }
+        temp
     })
     # select columns for markers/genes
     output$var_gene_select <- renderUI(
@@ -113,7 +119,8 @@ server <- function(input, output, session) {
                      coord_x = input$coord_x, coord_y = input$coord_y,
                      cellID_gene = input$cellID_gene,
                      fov_gene = input$fov_gene,
-                     dir = input$dir)
+                     dir = input$dir, markers = markers(),
+                     path1 = input$file_markers$datapath)
     })
     
     # load object and Tab 2 ####
@@ -155,10 +162,10 @@ server <- function(input, output, session) {
         })
     
     # Tab 3 ####
-    markers <- reactive(rownames(assay(spe())))
+    markers2 <- reactive(rownames(assay(spe())))
     output$marker_level <- renderUI(
         selectInput('marker_level', label = "Select the marker:", 
-                    choices = markers()))
+                    choices = markers2()))
     output$plot_marker <- renderPlot({
         if (length(spe()) != 0 ){
             p <- plot_cell_marker_levels(spe(), marker = input$marker_level)

@@ -24,7 +24,7 @@ Tab1 <- tabPanel(
                     conditionalPanel(
                         condition = "input.format == inForm",
                         numericInput("n_markers", "The number of markers:", value = 1),
-                        uiOutput("markers")
+                        uiOutput("marker")
                     )),
                     
                 # Select the range to show rows in the data (fast)
