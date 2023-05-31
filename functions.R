@@ -175,6 +175,7 @@ format_image <- function(format, var_gene_select = input$var_gene_select, var_ge
     }else if (format == "Visium"){
         Visium_spe <- SpatialExperiment::read10xVisium(
             samples = dir, type = "HDF5", data = "raw")
+        spatialCoordsNames(Visium_spe) <- c("Cell.X.Position", "Cell.Y.Position")
         save(Visium_spe, file = "Objects/Visium_spe.Rda")
     }else if (format == "inForm"){
         cols <- substr(as.character(unlist(var_gene_select)),2,stringr::str_length(as.character(unlist(var_gene_select)))-1)
