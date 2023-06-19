@@ -6,7 +6,7 @@ Tab1 <- tabPanel(
                 # Select file format
                 selectInput("format", "Select file format",
                             choices = c("general", "inForm", "HALO", "Xenium", "Visium", 
-                                        "MERSCOPE", "CosMX", "CODEX"),
+                                        "MERSCOPE", "CosMX"),
                             selected = "inForm"),
                 uiOutput("format"),
             ),

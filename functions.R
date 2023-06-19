@@ -327,14 +327,14 @@ get_colData <- function(spe_object){
 # read marker or gene
 read_markerGene <- function(format, path1, path2){
     if (format == "inForm"){
-        if (is.null(path1)){
-            path1 <- "Data/example/tiny_inform.txt.gz"
-        }
+        # if (is.null(path1)){
+        #     path1 <- "Data/example/tiny_inform.txt.gz"
+        # }
         df <- vroom::vroom(path1, delim = "\t")
     }else if(format == "HALO"){
-      if (is.null(path1)){
-        path1 <- "Data/example/tiny_halo.csv.gz"
-      }
+      # if (is.null(path1)){
+      #   path1 <- "Data/example/tiny_halo.csv.gz"
+      # }
         df <- vroom::vroom(path1)
     }else if (format == "MERSCOPE" || format == "CosMX" || format == "general"){
         df <- vroom::vroom(path2)
