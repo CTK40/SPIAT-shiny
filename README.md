@@ -4,7 +4,6 @@ This is a Shiny App that assists formatting spatial proteomics/transciptomics da
 
 To use the Shiny App, navigate to your local folder and use `git` to clone the `SPIAT-shiny` repo.
 ```
-git init
 git clone https://github.com/TrigosTeam/SPIAT-shiny.git
 ```
 
