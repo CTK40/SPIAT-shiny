@@ -23,7 +23,7 @@ server <- function(input, output, session) {
                       accept = c(".csv", ".gz", ".txt", ".tsv"))
         }else if (format() == "Xenium" || format() == "Visium"){
             textInput("dir", "Type your folder path")
-        }else if (format() == "MERSCOPE" || format() == "CosMX"){
+        }else if (format() == "MERSCOPE" || format() == "CosMX" || format() == "general"){
             fluidRow(
                 column(6, fileInput("file_markers2", "Select file for gene expressions:", 
                                     accept = c(".csv", ".gz", ".txt", ".tsv"))) , 
@@ -39,85 +39,93 @@ server <- function(input, output, session) {
     
     # read in metadata
     metadata <- reactive(
-        if (format() == "MERSCOPE" || format() == "CosMX"){
+        if (format() == "MERSCOPE" || format() == "CosMX" || format() == "general"){
             vroom::vroom(input$file_meta$datapath)
         }
     )
-    reactive({
-        if (format() != "Visium" && format() != "Xenium"){
-            # Select columns subject to the file selected
-            # select column for cell ID
-            output$cellID_gene <- renderUI(
-                varSelectInput("cellID_gene", label = "Variable for Cell ID:", 
-                               data = markerOrGene(), multiple = FALSE))
-            output$fov_gene <- renderUI(
-                if (format() == "CosMX"){
-                    varSelectInput("fov_gene", label = "Variable for fov:", 
-                                   data = markerOrGene(), multiple = FALSE)
-                })
-            # The number of textboxes to input markers depends on the number of markers
-            marker_names <- reactive(paste0("marker", seq_len(input$n_markers)))
-            output$marker <- renderUI({
-                map(marker_names(), ~ column(3, textInput(.x, NULL, value = "AMACR")))
-            })
-            markers <- reactive({
-                temp <- c()
-                for (i in seq_len(input$n_markers)){
-                    temp <- c(temp, eval(parse(text = paste0("input$marker", i))))
-                }
-                temp
-            })
-            # select columns for markers/genes
-            output$var_gene_select <- renderUI(
-                varSelectInput("var_gene_select", label = "Variable to select:", data = markerOrGene(),
-                               multiple = TRUE, width = "500px"))
-            # ignore columns for markers/genes
-            output$var_gene_ignore <- renderUI(
-                varSelectInput("var_gene_ignore", label = "Variable to neglect:", data = markerOrGene(),
-                               multiple = TRUE, width = "500px"))
-            
-            # Visualise the table
-            output$markerOrGene <- renderTable({
-                if (length(input$var_gene_select) == 0 && length(input$var_gene_ignore) == 0) {
-                    return(markerOrGene()[input$row1:input$row2, ])
-                }else if (length(input$var_gene_select) != 0 && length(input$var_gene_ignore) == 0){
-                    markerOrGene()[input$row1:input$row2, ] %>% select(!!!input$var_gene_select)
-                }else if (length(input$var_gene_select) == 0 && length(input$var_gene_ignore) != 0){
-                    # Couldn't find a way to directly 
-                    temp <- markerOrGene()[input$row1:input$row2, ] 
-                    for (i in 1:length(input$var_gene_ignore)){
-                        temp <- temp %>% select(!(!!input$var_gene_ignore[[i]]))
-                    }
-                    temp
-                }
-            }, rownames = TRUE)
-            
-            # visualise the metadata
-            reactive({
-                if (!is.null(metadata())){
-                    output$cellID_metadata <- renderUI_varSelect("cellID_metadata", "Variable for Cell ID:",
-                                                                 data = metadata())
-                    output$sample <- renderUI_varSelect("sample", "Varaible of sample ID (fov) to select:", 
-                                                        data = metadata(), width = "500px")
-                    output$phenotype <- renderUI_varSelect("phenotype", "Variable of phenotype to select:", 
-                                                           data = metadata(),width = "500px")
-                    output$coord_x <- renderUI_varSelect("coord_x", "Variable of x coordinates to select:", 
-                                                         data = metadata(), width = "500px")
-                    output$coord_y <- renderUI_varSelect("coord_y", "Variable of y coordinates to select:", 
-                                                         data = metadata(),  width = "500px")
-                    output$metadata <- renderTable({
-                        return(metadata()[1:10, ])
-                    })
-                }
-            })
-        }
+
+    # Select columns subject to the file selected
+    # select column for cell ID
+    output$cellID_gene <- renderUI(
+        varSelectInput("cellID_gene", label = "Variable for Cell ID:", 
+                       data = markerOrGene(), multiple = FALSE))
+    output$fov_gene <- renderUI(
+        if (format() == "CosMX"){
+            varSelectInput("fov_gene", label = "Variable for fov:", 
+                           data = markerOrGene(), multiple = FALSE)
+        })
+    # The number of textboxes to input markers depends on the number of markers
+    marker_names <- reactive(paste0("marker", seq_len(input$n_markers)))
+    output$marker <- renderUI({
+        map(marker_names(), ~ textInput(.x, NULL, value = "AMACR"))
     })
+    markers <- reactive({
+        temp <- c()
+        for (i in seq_len(input$n_markers)){
+            temp <- c(temp, eval(parse(text = paste0("input$marker", i))))
+        }
+        temp
+    })
+    # select columns for markers/genes
+    output$var_gene_select <- renderUI(
+        varSelectInput("var_gene_select", label = "Variable to select:", data = markerOrGene(),
+                       multiple = TRUE, width = "500px"))
+    # ignore columns for markers/genes
+    output$var_gene_ignore <- renderUI(
+        varSelectInput("var_gene_ignore", label = "Variable to neglect:", data = markerOrGene(),
+                       multiple = TRUE, width = "500px"))
     
+    # select the columns of intensity columns
+    output$intensity_columns <- renderUI(
+        varSelectInput("intensity_columns", label = "Select the columns of marker intensities:", data = markerOrGene(),
+                       multiple = TRUE, width = "500px"))
     
-   
+    output$dye_columns <- renderUI(
+        varSelectInput("dye_columns", label = "Select the columns of marker positivity:", data = markerOrGene(),
+                       multiple = TRUE, width = "500px"))
+    # Visualise the table
+    output$markerOrGene <- renderTable({
+        if (length(input$var_gene_select) == 0 && length(input$var_gene_ignore) == 0) {
+            return(markerOrGene()[input$row1:input$row2, ])
+        }else if (length(input$var_gene_select) != 0 && length(input$var_gene_ignore) == 0){
+            markerOrGene()[input$row1:input$row2, ] %>% select(!!!input$var_gene_select)
+        }else if (length(input$var_gene_select) == 0 && length(input$var_gene_ignore) != 0){
+            # Couldn't find a way to directly 
+            temp <- markerOrGene()[input$row1:input$row2, ] 
+            for (i in 1:length(input$var_gene_ignore)){
+                temp <- temp %>% select(!(!!input$var_gene_ignore[[i]]))
+            }
+            temp
+        }
+    }, rownames = TRUE)
+    
+    # visualise the metadata
+    output$cellID_metadata <- renderUI(
+        varSelectInput("cellID_metadata", "Variable for Cell ID:",
+                                                 data = metadata()))
+    output$sample <- renderUI(
+        varSelectInput("sample", "Varaible of sample ID (fov) to select:", 
+                                        data = metadata(), width = "300px"))
+    output$phenotype <- renderUI(
+        varSelectInput("phenotype", "Variable of phenotype to select:", 
+                                           data = metadata(),width = "300px"))
+    output$coord_x <- renderUI(
+        varSelectInput("coord_x", "Variable of x coordinates to select:", 
+                                         data = metadata(), width = "300px"))
+    output$coord_y <- renderUI(
+        varSelectInput("coord_y", "Variable of y coordinates to select:", 
+                                         data = metadata(),  width = "300px"))
+    output$metadata <- renderTable({
+        return(metadata()[1:10, ])
+    })
+
+
     # If click the button, save the object
     observeEvent(input$do, {
-        format_image(format = format(), var_gene_select = input$var_gene_select, var_gene_ignore = input$var_gene_ignore,
+        format_image(format = format(), var_gene_select = input$var_gene_select, 
+                     var_gene_ignore = input$var_gene_ignore,
+                     intensity_columns = input$intensity_columns,
+                     dye_columns = input$dye_columns,
                      df = markerOrGene(), df_meta = metadata(),
                      cellID_metadata = input$cellID_metadata, 
                      sample = input$sample, phenotype = input$phenotype,
@@ -146,15 +154,21 @@ server <- function(input, output, session) {
     })
     
     # format spe object
-    coldata <- reactive({ get_colData(spe())})
+    coldata <- reactive({ 
+        if (!is.null(spe())) get_colData(spe())})
     
     # get the arguments from the ui
     output$feature_colname <- renderUI(
         varSelectInput("feature_colname", "Column name", data = coldata()))
     output$categories <- renderUI(
-        selectInput("categories", label = "Cells of interest", 
-                     choices = unique(coldata()[[input$feature_colname]]),
+        selectizeInput("categories", label = "Cells of interest", 
+                     choices = NULL,
                     multiple = TRUE))
+    observeEvent(input$feature_colname,{
+        updateSelectizeInput(session, inputId = 'categories', 
+                             choices = as.character(unique(coldata()[[input$feature_colname]])),  # a temporary workaround to solve the 0:FALSE, 1:TRUE error
+                             server = TRUE)
+    })
     
     output$colour <- renderUI(
         selectInput('colour', label = "Colour vector", choices = col_vector(),
@@ -170,14 +184,25 @@ server <- function(input, output, session) {
         })
     
     # Tab 3 ####
-    markers2 <- reactive(rownames(assay(spe())))
-    output$marker_level <- renderUI(
-        selectInput('marker_level', label = "Select the marker:", 
-                    choices = markers2()))
+    markers2 <- reactive({
+        if (!is.null(spe())) as.character(rownames(assay(spe())))
+    })
+
+    output$marker_level <-
+        renderUI(
+            selectizeInput('marker_level', label = "Select the marker:", 
+                       choices =  NULL)
+    )
+    observeEvent(spe(),{
+        updateSelectizeInput(session, inputId = 'marker_level', choices = markers2(), 
+                             server = TRUE)}  
+    )
+    
+    
     output$plot_marker <- renderPlot({
         if (length(spe()) != 0 ){
             p <- plot_cell_marker_levels(spe(), marker = input$marker_level)
-            plot(p, width = 10, height = 10)}
-        })
+            plot(p, width = 10, height = 10)}})
+
     #####
 }
