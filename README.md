@@ -8,6 +8,5 @@ git clone https://github.com/TrigosTeam/SPIAT-shiny.git
 ```
 
 If using RStudio, open the `app.R` file and click `Run App` to start the application;
-If using command line, make sure you are in the SPIAT-shiny folder and enter `Rscript app.R`, and then paste the url into a browser to use the application.
+If using command line, make sure you are in the SPIAT-shiny folder and enter `Rscript app.R`, and then paste the url into a browser to use the application. You can follow the video [here](https://youtu.be/gBYkKk2fuA4) to get started.
 
-Now follow the following videos to read data of different platforms.
