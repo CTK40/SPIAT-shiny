@@ -72,7 +72,7 @@ server <- function(input, output, session) {
                        multiple = TRUE, width = "500px"))
     # ignore columns for markers/genes
     output$var_gene_ignore <- renderUI(
-        varSelectInput("var_gene_ignore", label = "Variable to neglect:", data = markerOrGene(),
+        varSelectInput("var_gene_ignore", label = "Variable to exclude:", data = markerOrGene(),
                        multiple = TRUE, width = "500px"))
     
     # select the columns of intensity columns
